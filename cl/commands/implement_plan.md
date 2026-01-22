@@ -1,20 +1,20 @@
 ---
-description: Implement technical plans with verification at each phase
+description: Implement technical plans from thoughts/shared/plans with verification
 ---
 
 # Implement Plan
 
-You are tasked with implementing an approved technical plan. These plans contain phases with specific changes and success criteria.
+You are tasked with implementing an approved technical plan from `thoughts/shared/plans/`. These plans contain phases with specific changes and success criteria.
 
 ## Getting Started
 
 When given a plan path:
-1. **Read the plan completely** and check for any existing checkmarks (`- [x]`)
-2. **Read the original ticket** and all files mentioned in the plan
-3. **Read files fully** - never use limit/offset parameters, you need complete context
-4. **Think deeply** about how the pieces fit together
-5. **Create a todo list** to track your progress
-6. **Start implementing** if you understand what needs to be done
+- Read the plan completely and check for any existing checkmarks (- [x])
+- Read the original ticket and all files mentioned in the plan
+- **Read files fully** - never use limit/offset parameters, you need complete context
+- Think deeply about how the pieces fit together
+- Create a todo list to track your progress
+- Start implementing if you understand what needs to be done
 
 If no plan path provided, ask for one.
 
@@ -26,56 +26,51 @@ Plans are carefully designed, but reality can be messy. Your job is to:
 - Verify your work makes sense in the broader codebase context
 - Update checkboxes in the plan as you complete sections
 
-When things don't match the plan exactly, think about why and communicate clearly.
+When things don't match the plan exactly, think about why and communicate clearly. The plan is your guide, but your judgment matters too.
 
-## Handling Mismatches
+If you encounter a mismatch:
+- STOP and think deeply about why the plan can't be followed
+- Present the issue clearly:
+  ```
+  Issue in Phase [N]:
+  Expected: [what the plan says]
+  Found: [actual situation]
+  Why this matters: [explanation]
 
-If you encounter something that doesn't match the plan:
-1. **STOP** and think deeply about why
-2. **Present the issue clearly**:
-
-```
-Issue in Phase [N]:
-Expected: [what the plan says]
-Found: [actual situation]
-Why this matters: [explanation]
-
-How should I proceed?
-```
+  How should I proceed?
+  ```
 
 ## Verification Approach
 
 After implementing a phase:
+- Run the success criteria checks (usually `make check test` covers everything)
+- Fix any issues before proceeding
+- Update your progress in both the plan and your todos
+- Check off completed items in the plan file itself using Edit
+- **Pause for human verification**: After completing all automated verification for a phase, pause and inform the human that the phase is ready for manual testing. Use this format:
+  ```
+  Phase [N] Complete - Ready for Manual Verification
 
-1. **Run automated checks** (usually `make check test` or similar)
-2. **Fix any issues** before proceeding
-3. **Update progress** in both the plan and your todos
-4. **Check off completed items** in the plan file using Edit
+  Automated verification passed:
+  - [List automated checks that passed]
 
-5. **Pause for manual verification**:
+  Please perform the manual verification steps listed in the plan:
+  - [List manual verification items from the plan]
 
-```
-Phase [N] Complete - Ready for Manual Verification
+  Let me know when manual testing is complete so I can proceed to Phase [N+1].
+  ```
 
-Automated verification passed:
-- [List automated checks that passed]
+If instructed to execute multiple phases consecutively, skip the pause until the last phase. Otherwise, assume you are just doing one phase.
 
-Please perform the manual verification steps listed in the plan:
-- [List manual verification items from the plan]
+do not check off items in the manual testing steps until confirmed by the user.
 
-Let me know when manual testing is complete so I can proceed to Phase [N+1].
-```
-
-**Note**: If instructed to execute multiple phases consecutively, skip the pause until the last phase.
-
-**Important**: Do not check off manual testing items until confirmed by the user.
 
 ## If You Get Stuck
 
 When something isn't working as expected:
-1. Make sure you've read and understood all relevant code
-2. Consider if the codebase has evolved since the plan was written
-3. Present the mismatch clearly and ask for guidance
+- First, make sure you've read and understood all the relevant code
+- Consider if the codebase has evolved since the plan was written
+- Present the mismatch clearly and ask for guidance
 
 Use sub-tasks sparingly - mainly for targeted debugging or exploring unfamiliar territory.
 
@@ -86,6 +81,4 @@ If the plan has existing checkmarks:
 - Pick up from the first unchecked item
 - Verify previous work only if something seems off
 
-## Remember
-
-You're implementing a solution, not just checking boxes. Keep the end goal in mind and maintain forward momentum.
+Remember: You're implementing a solution, not just checking boxes. Keep the end goal in mind and maintain forward momentum.
