@@ -32,10 +32,24 @@ Set up autonomous Claude loops with persistent state via `IMPLEMENTATION_PLAN.md
 
 ## Quick Setup
 
-1. **Create file structure:**
+1. **Copy templates** to your project:
+```bash
+cp templates/* your-project/
+cp templates/ralph.conf your-project/
+```
+
+2. **Run interactive setup:**
+```bash
+cd your-project
+./setup.sh
+```
+
+3. **File structure created:**
 ```
 project/
 ├── loop.sh              # Outer loop orchestrator
+├── setup.sh             # Interactive configuration
+├── ralph.conf           # Harness & loop settings
 ├── PROMPT_plan.md       # Gap analysis mode
 ├── PROMPT_build.md      # Implementation mode
 ├── AGENTS.md            # Project-specific operations
@@ -44,22 +58,55 @@ project/
     └── *.md
 ```
 
-2. **Copy templates** from [templates/](templates/) and customize for your project
+4. **Configure backpressure** for your language - see [references/backpressure.md](references/backpressure.md)
 
-3. **Configure backpressure** for your language - see [references/backpressure.md](references/backpressure.md)
+5. **Write specs** using JTBD format - see [references/specs.md](references/specs.md)
 
-4. **Write specs** using JTBD format - see [references/specs.md](references/specs.md)
-
-5. **Run the loop:**
+6. **Run the loop:**
 ```bash
-# Planning mode (gap analysis, generate plan)
-ln -sf PROMPT_plan.md PROMPT.md
-./loop.sh
-
-# Building mode (implement from plan)
-ln -sf PROMPT_build.md PROMPT.md
-./loop.sh
+./loop.sh --plan              # Planning mode (analysis)
+./loop.sh --build             # Building mode (implementation)
+./loop.sh --build --allow-subtasks  # With parallel subagents
 ```
+
+## Harness Configuration
+
+Ralph supports multiple AI coding CLIs:
+
+| Harness | Command | Best For |
+|---------|---------|----------|
+| `claude` | Claude Code CLI | Best agentic capabilities (recommended) |
+| `opencode` | OpenCode CLI | Multi-model flexibility |
+| `codex` | Codex CLI | OpenAI o1 reasoning |
+| `custom` | Your command | Specialized setups |
+
+```bash
+# Claude Code (default)
+./loop.sh --harness claude
+
+# OpenCode with GPT-4
+./loop.sh --harness opencode --model gpt-4-turbo
+
+# Codex with o1
+./loop.sh --harness codex --model o1
+
+# Custom command (set CUSTOM_CMD in ralph.conf)
+./loop.sh --harness custom
+```
+
+See [references/harnesses.md](references/harnesses.md) for detailed comparison.
+
+## Tool Permissions (Claude Code)
+
+| Mode | Allowed Tools |
+|------|---------------|
+| `--plan` | Read, Glob, Grep, Task, WebFetch, WebSearch |
+| `--build` | Edit, Write, Bash, Read, Glob, Grep |
+| `--build --allow-subtasks` | Edit, Write, Bash, Read, Glob, Grep, Task |
+| `--dangerous` | All tools, no permission prompts |
+
+Plan mode is read-only for analysis. Build mode enables file modification.
+Add `--allow-subtasks` to enable parallel subagent execution.
 
 ## What Needs Project-Specific Customization
 
@@ -122,13 +169,16 @@ Run Ralph in sandboxes with:
 
 ## Templates
 
-- [templates/loop.sh](templates/loop.sh) - Outer loop script
+- [templates/loop.sh](templates/loop.sh) - Outer loop script with harness support
+- [templates/setup.sh](templates/setup.sh) - Interactive configuration wizard
+- [templates/ralph.conf](templates/ralph.conf) - Configuration file template
 - [templates/PROMPT_plan.md](templates/PROMPT_plan.md) - Planning phase prompt
 - [templates/PROMPT_build.md](templates/PROMPT_build.md) - Building phase prompt
 - [templates/AGENTS.md](templates/AGENTS.md) - Operations guide template
 
 ## References
 
+- [references/harnesses.md](references/harnesses.md) - AI CLI comparison and configuration
 - [references/backpressure.md](references/backpressure.md) - Language-specific backpressure patterns
 - [references/specs.md](references/specs.md) - Writing JTBD specifications
 - [references/subagents.md](references/subagents.md) - Subagent patterns and scaling
