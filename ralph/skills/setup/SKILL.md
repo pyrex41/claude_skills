@@ -1,184 +1,104 @@
 ---
 name: ralph-setup
-description: Set up the Ralph Wiggum autonomous development workflow for a project. Use when initializing Ralph loops, creating IMPLEMENTATION_PLAN.md, or configuring backpressure for autonomous AI development.
-argument-hint: [language/framework]
+description: Interactively set up the Ralph Wiggum autonomous development workflow for a project. Use when initializing Ralph loops, configuring harness/model/permissions, or scaffolding backpressure for autonomous AI development.
+argument-hint: [project-path]
+allowed-tools: AskUserQuestion, Write, Bash, Read, Glob, Grep
 ---
 
-# Ralph Wiggum Setup
+# Ralph Wiggum Interactive Setup
 
-Set up autonomous Claude loops with persistent state via `IMPLEMENTATION_PLAN.md`.
+You are setting up the Ralph Wiggum autonomous development loop for a project. Interview the user to configure everything, then generate the files.
 
-## Core Architecture
+## Interview Flow
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  OUTER LOOP (loop.sh)                                   │
-│  while true; do cat PROMPT.md | claude; git push; done  │
-└─────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│  INNER LOOP (single execution)                          │
-│  1. Orient (study specs and source)                     │
-│  2. Read IMPLEMENTATION_PLAN.md                         │
-│  3. Select highest-priority task                        │
-│  4. Investigate existing code (don't assume missing)    │
-│  5. Implement via parallel subagents                    │
-│  6. Validate (tests - 1 subagent only for backpressure) │
-│  7. Update plan and commit                              │
-│  8. Exit for context refresh                            │
-└─────────────────────────────────────────────────────────┘
-```
+Use AskUserQuestion to walk through each step. Ask one question at a time. Use the answers to generate all configuration files at the end.
 
-## Quick Setup
+### Step 1: AI Harness
 
-1. **Copy templates** to your project:
-```bash
-cp templates/* your-project/
-cp templates/ralph.conf your-project/
-```
+Ask which AI coding CLI they'll use:
+- **Claude Code** (recommended) - Best agentic capabilities, native subagents, fine-grained permissions
+- **OpenCode** - Multi-model (GPT-4, Claude, Gemini), good for model flexibility
+- **Codex CLI** - OpenAI's agent, good with o1 for reasoning-heavy tasks
+- **Custom** - Any CLI that accepts a prompt file (aider, continue, custom wrapper)
 
-2. **Run interactive setup:**
-```bash
-cd your-project
-./setup.sh
-```
+If they pick OpenCode or Codex, ask which model. If custom, ask for the command template (explain `{PROMPT_FILE}` placeholder).
 
-3. **File structure created:**
-```
-project/
-├── loop.sh              # Outer loop orchestrator
-├── setup.sh             # Interactive configuration
-├── ralph.conf           # Harness & loop settings
-├── PROMPT_plan.md       # Gap analysis mode
-├── PROMPT_build.md      # Implementation mode
-├── AGENTS.md            # Project-specific operations
-├── IMPLEMENTATION_PLAN.md  # Persistent state (generated)
-└── specs/               # One file per JTBD topic
-    └── *.md
-```
+### Step 2: Permission Model
 
-4. **Configure backpressure** for your language - see [references/backpressure.md](references/backpressure.md)
+Ask about their comfort level with autonomous permissions:
+- **Guarded** - Separate plan/build permissions. Plan mode: read-only. Build mode: Edit, Write, Bash only.
+- **Subtasks enabled** - Same as guarded, but adds Task tool in build mode for parallel subagent execution
+- **Full auto** - Skip all permission prompts (`--dangerously-skip-permissions` / `--approval-mode full-auto`)
 
-5. **Write specs** using JTBD format - see [references/specs.md](references/specs.md)
+### Step 3: Backpressure / Validation
 
-6. **Run the loop:**
-```bash
-./loop.sh --plan              # Planning mode (analysis)
-./loop.sh --build             # Building mode (implementation)
-./loop.sh --build --allow-subtasks  # With parallel subagents
-```
+Ask what language/framework the project uses. Then ask for their specific commands:
+- **Build command** (e.g., `npm run build`, `cargo build`, `go build ./...`)
+- **Test command** (e.g., `npm run test`, `cargo test`, `pytest`)
+- **Lint command** (e.g., `npm run lint`, `cargo clippy -- -D warnings`, `ruff check .`)
+- **Type check command** if applicable (e.g., `tsc --noEmit`, `mypy .`)
+- **Full check command** - combined command that runs all of the above
 
-## Harness Configuration
+If they're unsure, suggest defaults from [references/backpressure.md](references/backpressure.md) based on their language.
 
-Ralph supports multiple AI coding CLIs:
+### Step 4: Project Conventions
 
-| Harness | Command | Best For |
-|---------|---------|----------|
-| `claude` | Claude Code CLI | Best agentic capabilities (recommended) |
-| `opencode` | OpenCode CLI | Multi-model flexibility |
-| `codex` | Codex CLI | OpenAI o1 reasoning |
-| `custom` | Your command | Specialized setups |
+Ask about:
+- Brief project description (one sentence)
+- Source directory layout (e.g., `src/`, `lib/`, `pkg/`)
+- Test file conventions (e.g., `*.test.ts` next to source, `tests/` directory)
+- Any guardrails - files Ralph must never touch, patterns to avoid
 
-```bash
-# Claude Code (default)
-./loop.sh --harness claude
+### Step 5: Subagent Limits
 
-# OpenCode with GPT-4
-./loop.sh --harness opencode --model gpt-4-turbo
+Ask how aggressively to parallelize:
+- **Conservative** - Up to 10 search subagents, 2 implementation, 1 validation
+- **Standard** - Up to 50 search, 5 implementation, 1 validation
+- **Aggressive** - Up to 200 search, 10 implementation, 1 validation
 
-# Codex with o1
-./loop.sh --harness codex --model o1
+Validation is always 1 subagent (serialized backpressure).
 
-# Custom command (set CUSTOM_CMD in ralph.conf)
-./loop.sh --harness custom
-```
+## File Generation
 
-See [references/harnesses.md](references/harnesses.md) for detailed comparison.
+After the interview, generate all files in the project directory ($ARGUMENTS or current directory):
 
-## Tool Permissions (Claude Code)
+### Files to generate:
 
-| Mode | Allowed Tools |
-|------|---------------|
-| `--plan` | Read, Glob, Grep, Task, WebFetch, WebSearch |
-| `--build` | Edit, Write, Bash, Read, Glob, Grep |
-| `--build --allow-subtasks` | Edit, Write, Bash, Read, Glob, Grep, Task |
-| `--dangerous` | All tools, no permission prompts |
+1. **`ralph.conf`** - Configuration from Steps 1-2
+2. **`loop.sh`** - Outer loop script (from [templates/loop.sh](templates/loop.sh), customized)
+3. **`PROMPT_plan.md`** - Planning prompt (from [templates/PROMPT_plan.md](templates/PROMPT_plan.md), with subagent limits from Step 5)
+4. **`PROMPT_build.md`** - Building prompt (from [templates/PROMPT_build.md](templates/PROMPT_build.md), with subagent limits from Step 5)
+5. **`AGENTS.md`** - Populated with answers from Steps 3-4 (use [templates/AGENTS.md](templates/AGENTS.md) as base)
+6. **`specs/`** directory (create empty, with a note to add JTBD specs)
 
-Plan mode is read-only for analysis. Build mode enables file modification.
-Add `--allow-subtasks` to enable parallel subagent execution.
+Read each template file, customize it with the user's answers, and write the result.
 
-## What Needs Project-Specific Customization
+### Customization rules:
 
-| Component | What to customize |
-|-----------|-------------------|
-| `AGENTS.md` | Build commands, test commands, lint commands, project conventions |
-| `PROMPT_*.md` | Subagent limits, tool permissions, project-specific guardrails |
-| Backpressure | Test framework, build system, linter configuration |
-| Specs | Your actual requirements in JTBD format |
+- **AGENTS.md**: Fill in all `[placeholder]` sections with real values from the interview
+- **PROMPT_plan.md**: Update subagent limits to match Step 5 answers
+- **PROMPT_build.md**: Update subagent limits and validation commands to match answers
+- **ralph.conf**: Set HARNESS, MODEL, ALLOW_SUBTASKS from Steps 1-2
+- **loop.sh**: Copy from template as-is (it reads ralph.conf at runtime)
 
-## Critical Language Patterns
+## After Generation
 
-Use these exact phrases in prompts - Claude responds to them:
+Show the user:
+1. Summary of what was generated
+2. How to run: `./loop.sh --plan` then `./loop.sh --build`
+3. Remind them to write JTBD specs in `specs/*.md` (link to [references/specs.md](references/specs.md) format)
 
-- **"study"** not "read" (implies deeper analysis)
-- **"don't assume not implemented"** (forces code investigation)
-- **"up to N parallel subagents"** (controls parallelism)
-- **"Ultrathink"** (enables extended thinking)
-- **"capture the why"** (documents reasoning)
-- **"keep it up to date"** (maintains plan currency)
-
-## Steering Mechanisms
-
-**Upstream (deterministic setup):**
-- Consistent context files loaded every iteration
-- Clear specs in `specs/` directory
-- Explicit guardrails in prompts
-
-**Downstream (backpressure):**
-- Tests reject invalid implementations
-- Build fails on compilation errors
-- Linter enforces style/safety
-- Type checker catches errors early
-
-## Subagent Scaling
-
-| Task Type | Parallelism | Model |
-|-----------|-------------|-------|
-| Search/read | Up to 500 | Sonnet |
-| Build/test | 1 only | Sonnet |
-| Architecture | As needed | Opus |
-
-Single subagent for tests = serialized validation = backpressure.
-
-## When to Regenerate the Plan
-
-- Ralph going off-track
-- Specs changed significantly
-- Plan accumulated clutter
-- Starting fresh is cheaper than fixing
-
-The plan is disposable. One Planning loop < looping on wrong tasks.
-
-## Safety
-
-Run Ralph in sandboxes with:
-- Minimal API keys
-- No unrelated credentials
-- Contained blast radius
-
-## Templates
-
-- [templates/loop.sh](templates/loop.sh) - Outer loop script with harness support
-- [templates/setup.sh](templates/setup.sh) - Interactive configuration wizard
-- [templates/ralph.conf](templates/ralph.conf) - Configuration file template
-- [templates/PROMPT_plan.md](templates/PROMPT_plan.md) - Planning phase prompt
-- [templates/PROMPT_build.md](templates/PROMPT_build.md) - Building phase prompt
-- [templates/AGENTS.md](templates/AGENTS.md) - Operations guide template
-
-## References
+## Reference Files
 
 - [references/harnesses.md](references/harnesses.md) - AI CLI comparison and configuration
 - [references/backpressure.md](references/backpressure.md) - Language-specific backpressure patterns
 - [references/specs.md](references/specs.md) - Writing JTBD specifications
 - [references/subagents.md](references/subagents.md) - Subagent patterns and scaling
+
+## Architecture Context (for your reference, don't dump on user)
+
+Ralph uses an outer bash loop that runs the AI agent repeatedly with fresh context. Each iteration reads PROMPT.md + AGENTS.md + specs/*, picks a task from IMPLEMENTATION_PLAN.md, implements it, validates via backpressure (tests/build/lint), updates the plan, commits, and exits. The plan file is persistent shared state between isolated executions.
+
+Key phrases to embed in generated prompts: "study" (not read), "don't assume not implemented", "up to N parallel subagents", "Ultrathink", "capture the why", "keep it up to date".
+
+Plan mode is read-only analysis. Build mode modifies code. Validation always uses exactly 1 subagent for serialized backpressure.
