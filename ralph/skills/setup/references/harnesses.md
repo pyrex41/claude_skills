@@ -32,6 +32,39 @@ npm install -g @anthropic-ai/claude-code
 
 ---
 
+## Cursor CLI (Headless)
+
+Cursor's headless agent for scripting and automation.
+
+```bash
+# Install
+curl https://cursor.com/install -fsSL | bash
+
+# Set API key
+export CURSOR_API_KEY=your_api_key_here
+
+# Usage
+./loop.sh --harness cursor --plan
+./loop.sh --harness cursor --build
+```
+
+**Pros:**
+- Headless/scriptable mode for automation
+- Print mode (`-p`) for non-interactive use
+- JSON and streaming output formats
+- File modification with `--force` flag
+
+**Cons:**
+- No native subagent support
+- Requires API key for headless mode
+- Less granular tool permissions than Claude Code
+
+**Modes:**
+- `agent -p "prompt"` - Print mode, read-only analysis
+- `agent -p --force "prompt"` - Print mode with file modifications enabled
+
+---
+
 ## OpenCode
 
 Multi-model agentic coding CLI.
@@ -130,20 +163,22 @@ CUSTOM_CMD="./my-wrapper.sh {PROMPT_FILE}"
 
 ## Comparison Matrix
 
-| Feature | Claude Code | OpenCode | Codex | Custom |
-|---------|-------------|----------|-------|--------|
-| Subagents | Yes (Task) | No | No | Depends |
-| Tool permissions | Fine-grained | Basic | Approval modes | Depends |
-| Extended thinking | Yes | No | o1 only | Depends |
-| Model flexibility | Claude only | Multi-model | OpenAI only | Any |
-| Sandbox support | Yes | Basic | Yes | Depends |
+| Feature | Claude Code | Cursor CLI | OpenCode | Codex | Custom |
+|---------|-------------|------------|----------|-------|--------|
+| Subagents | Yes (Task) | No | No | No | Depends |
+| Tool permissions | Fine-grained | Basic (--force) | Basic | Approval modes | Depends |
+| Extended thinking | Yes | No | No | o1 only | Depends |
+| Model flexibility | Claude only | Multi-model | Multi-model | OpenAI only | Any |
+| Sandbox support | Yes | No | Basic | Yes | Depends |
+| Headless/scripting | Yes | Yes (native) | Basic | Basic | Depends |
 
 ## Recommendation
 
 1. **Start with Claude Code** - Best agentic capabilities
-2. **Try OpenCode with GPT-4** if you need different models
-3. **Use Codex with o1** for complex reasoning tasks
-4. **Custom** for specialized setups or proprietary tools
+2. **Try Cursor CLI** for headless automation and scripting workflows
+3. **Try OpenCode with GPT-4** if you need different models
+4. **Use Codex with o1** for complex reasoning tasks
+5. **Custom** for specialized setups or proprietary tools
 
 ## Configuration
 

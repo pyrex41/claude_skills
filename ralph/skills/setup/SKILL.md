@@ -17,6 +17,7 @@ Use AskUserQuestion to walk through each step. Ask one question at a time. Use t
 
 Ask which AI coding CLI they'll use:
 - **Claude Code** (recommended) - Best agentic capabilities, native subagents, fine-grained permissions
+- **Cursor CLI** - Cursor's headless agent, good for scripting and automation
 - **OpenCode** - Multi-model (GPT-4, Claude, Gemini), good for model flexibility
 - **Codex CLI** - OpenAI's agent, good with o1 for reasoning-heavy tasks
 - **Custom** - Any CLI that accepts a prompt file (aider, continue, custom wrapper)

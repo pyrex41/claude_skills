@@ -18,7 +18,7 @@ PROMPT_FILE="${PROMPT_FILE:-PROMPT.md}"
 MAX_ITERATIONS="${MAX_ITERATIONS:-100}"
 SLEEP_BETWEEN="${SLEEP_BETWEEN:-5}"
 
-# Harness: claude | opencode | codex | custom
+# Harness: claude | cursor | opencode | codex | custom
 HARNESS="${HARNESS:-claude}"
 
 # Model (required for opencode/codex, ignored for claude)
@@ -62,7 +62,7 @@ Options:
   --plan                Run in planning mode (read-only analysis)
   --build               Run in building mode (default)
   --allow-subtasks      Allow Task tool for spawning subagents (build mode)
-  --harness <name>      AI harness: claude, opencode, codex, custom
+  --harness <name>      AI harness: claude, cursor, opencode, codex, custom
   --model <model>       Model to use (required for opencode/codex)
   --max <n>             Maximum iterations (default: 100)
   --sleep <n>           Seconds between iterations (default: 5)
@@ -80,6 +80,7 @@ Stop conditions:
 Examples:
   ./loop.sh --plan                           # Planning mode with Claude Code
   ./loop.sh --build --allow-subtasks         # Build mode with subtasks enabled
+  ./loop.sh --harness cursor --build         # Use Cursor CLI headless mode
   ./loop.sh --harness opencode --model gpt-4 # Use OpenCode with GPT-4
   ./loop.sh --harness codex --model o1       # Use Codex with o1
 
@@ -162,6 +163,12 @@ if [[ "$HARNESS" == "opencode" || "$HARNESS" == "codex" ]] && [[ -z "$MODEL" ]];
     exit 1
 fi
 
+if [[ "$HARNESS" == "cursor" ]] && [[ -z "$CURSOR_API_KEY" ]]; then
+    echo -e "${RED}Error: CURSOR_API_KEY environment variable is required for cursor harness${NC}"
+    echo "Get your API key from: https://cursor.com/dashboard"
+    exit 1
+fi
+
 if [[ "$HARNESS" == "custom" ]] && [[ -z "$CUSTOM_CMD" ]]; then
     echo -e "${RED}Error: CUSTOM_CMD must be set for custom harness${NC}"
     echo "Set it in ralph.conf or environment"
@@ -192,6 +199,23 @@ build_command() {
                     cmd="$cmd --allowedTools 'Edit,Write,Bash,Read,Glob,Grep'"
                 fi
             fi
+
+            echo "$cmd"
+            ;;
+
+        cursor)
+            # Cursor CLI (headless mode)
+            # Uses print mode (-p) for non-interactive scripting
+            local cmd="agent -p"
+
+            if [[ "$MODE" == "build" ]] || [[ "$DANGEROUS_MODE" == "true" ]]; then
+                # Build mode: enable file modifications with --force
+                cmd="$cmd --force"
+            fi
+            # Plan mode: no --force flag, changes are proposed but not applied
+
+            # Add the prompt from file
+            cmd="$cmd \"\$(cat '$prompt_file')\""
 
             echo "$cmd"
             ;;
