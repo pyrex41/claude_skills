@@ -71,3 +71,8 @@ After updating the plan:
 3. Exit cleanly for context refresh
 
 Do not implement anything. Planning mode is analysis only.
+
+## Stopping the Loop
+
+If there is nothing meaningful left to plan (all specs covered, no new gaps found):
+- `echo "planning complete - all specs covered" > .stop`

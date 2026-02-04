@@ -11,7 +11,7 @@ Study these files:
 
 ## Your Task (One Iteration)
 
-1. **Read IMPLEMENTATION_PLAN.md** - identify the current task
+1. **Read IMPLEMENTATION_PLAN.md** - identify the current task (if backlog is empty, write `.stop` and exit)
 2. **Study relevant specs** for that task
 3. **Investigate existing code** - don't assume not implemented
 4. **Implement the task** using subagents
@@ -93,3 +93,10 @@ Exit the iteration after:
 - Discovering the task is already implemented
 
 Always commit your progress before exiting, even partial progress.
+
+## Stopping the Loop
+
+Write a reason to `.stop` to signal the loop should not start another iteration:
+- No tasks left in backlog → `echo "no tasks remaining" > .stop`
+- All remaining tasks blocked / need human input → `echo "all tasks blocked" > .stop`
+- If the task list is empty, write the stop file and exit immediately.

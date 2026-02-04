@@ -34,6 +34,15 @@ MODE="${MODE:-build}"
 # Allow subtasks in build mode (true/false)
 ALLOW_SUBTASKS="${ALLOW_SUBTASKS:-false}"
 
+# Stop file — agent writes this when nothing left to do
+STOP_FILE=".stop"
+
+# Stream display script (set to "" to disable)
+DISPLAY_SCRIPT="${DISPLAY_SCRIPT:-stream_display.py}"
+
+# Dump raw stream JSON for debugging (set to file path to enable)
+DUMP_FILE="${DUMP_FILE:-}"
+
 # -----------------------------------------------------------------------------
 # Load config file if exists
 # -----------------------------------------------------------------------------
@@ -58,8 +67,15 @@ Options:
   --max <n>             Maximum iterations (default: 100)
   --sleep <n>           Seconds between iterations (default: 5)
   --prompt <file>       Prompt file to use (default: PROMPT.md)
+  --dump <file>         Dump raw stream JSON to file for debugging
+  --no-display          Disable stream display TUI
   --dangerous           Skip all permission checks (use with caution)
   -h, --help            Show this help
+
+Stop conditions:
+  - Agent writes .stop file (signals "nothing left to do")
+  - Max iterations reached (always enforced)
+  - Ctrl-C
 
 Examples:
   ./loop.sh --plan                           # Planning mode with Claude Code
@@ -111,6 +127,14 @@ while [[ $# -gt 0 ]]; do
             PROMPT_FILE="$2"
             shift 2
             ;;
+        --dump)
+            DUMP_FILE="$2"
+            shift 2
+            ;;
+        --no-display)
+            DISPLAY_SCRIPT=""
+            shift
+            ;;
         --dangerous)
             DANGEROUS_MODE=true
             shift
@@ -153,7 +177,7 @@ build_command() {
     case "$HARNESS" in
         claude)
             # Claude Code CLI
-            local cmd="cat '$prompt_file' | claude"
+            local cmd="cat '$prompt_file' | claude --output-format stream-json --verbose --include-partial-messages"
 
             if [[ "$DANGEROUS_MODE" == "true" ]]; then
                 cmd="$cmd --dangerously-skip-permissions"
@@ -212,6 +236,11 @@ build_command() {
 }
 
 # -----------------------------------------------------------------------------
+# Clean up stale stop file from previous run
+# -----------------------------------------------------------------------------
+rm -f "$STOP_FILE"
+
+# -----------------------------------------------------------------------------
 # Main loop
 # -----------------------------------------------------------------------------
 echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
@@ -226,6 +255,8 @@ echo "  Prompt file:    $PROMPT_FILE"
 echo "  Allow subtasks: $ALLOW_SUBTASKS"
 echo "  Max iterations: $MAX_ITERATIONS"
 echo "  Sleep between:  ${SLEEP_BETWEEN}s"
+[[ -n "$DISPLAY_SCRIPT" ]] && echo "  Display:        $DISPLAY_SCRIPT"
+[[ -n "$DUMP_FILE" ]] && echo "  Dump file:      $DUMP_FILE"
 [[ "$DANGEROUS_MODE" == "true" ]] && echo -e "  ${RED}DANGEROUS MODE: All permissions skipped${NC}"
 echo ""
 
@@ -233,6 +264,14 @@ iteration=0
 
 while [ $iteration -lt $MAX_ITERATIONS ]; do
     iteration=$((iteration + 1))
+
+    # Check stop file (agent wrote it — nothing left to do)
+    if [ -f "$STOP_FILE" ]; then
+        echo -e "${GREEN}Stop file found ($(cat "$STOP_FILE" 2>/dev/null || echo "no reason given")). Stopping.${NC}"
+        rm -f "$STOP_FILE"
+        break
+    fi
+
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${GREEN}  Iteration ${iteration} of ${MAX_ITERATIONS}${NC}"
     echo -e "${GREEN}  $(date '+%Y-%m-%d %H:%M:%S')${NC}"
@@ -241,24 +280,30 @@ while [ $iteration -lt $MAX_ITERATIONS ]; do
 
     # Build and run the command
     cmd=$(build_command "$PROMPT_FILE")
-    echo -e "${BLUE}Running: ${cmd}${NC}"
-    echo ""
 
-    if ! eval "$cmd"; then
-        echo -e "${RED}Agent exited with error${NC}"
-        echo "Sleeping before retry..."
-        sleep "$SLEEP_BETWEEN"
-        continue
+    # Build display args for stream_display.py
+    DISPLAY_ARGS="--iteration $iteration --mode $MODE"
+    [[ -n "$MODEL" ]] && DISPLAY_ARGS="$DISPLAY_ARGS --model $MODEL"
+    [[ -n "$DUMP_FILE" ]] && DISPLAY_ARGS="$DISPLAY_ARGS --dump $DUMP_FILE"
+
+    # Pipe through stream display if available and harness supports streaming
+    if [[ -n "$DISPLAY_SCRIPT" && -f "$DISPLAY_SCRIPT" && "$HARNESS" == "claude" ]]; then
+        echo -e "${BLUE}Running with stream display${NC}"
+        echo ""
+        if ! eval "$cmd" | python3 "$DISPLAY_SCRIPT" $DISPLAY_ARGS; then
+            echo -e "${RED}Agent exited with error${NC}"
+        fi
+    else
+        echo -e "${BLUE}Running: ${cmd}${NC}"
+        echo ""
+        if ! eval "$cmd"; then
+            echo -e "${RED}Agent exited with error${NC}"
+        fi
     fi
 
-    # Push changes if any
-    if [ -n "$(git status --porcelain)" ]; then
-        echo ""
-        echo -e "${YELLOW}Pushing changes...${NC}"
-        git push || echo -e "${RED}Push failed, continuing...${NC}"
-    else
-        echo ""
-        echo "No changes to push"
+    # Check stop file immediately (don't sleep if agent said to stop)
+    if [ -f "$STOP_FILE" ]; then
+        continue
     fi
 
     echo ""
@@ -267,5 +312,10 @@ while [ $iteration -lt $MAX_ITERATIONS ]; do
     sleep "$SLEEP_BETWEEN"
 done
 
+if [ -f "$STOP_FILE" ]; then
+    echo -e "${GREEN}Stop file found ($(cat "$STOP_FILE" 2>/dev/null || echo "no reason given")). Stopping.${NC}"
+    rm -f "$STOP_FILE"
+fi
+
 echo ""
-echo -e "${YELLOW}Reached max iterations (${MAX_ITERATIONS})${NC}"
+echo -e "${GREEN}Ralph loop finished after ${iteration} iterations${NC}"
