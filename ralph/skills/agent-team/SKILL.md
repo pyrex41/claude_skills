@@ -7,6 +7,8 @@ allowed-tools: AskUserQuestion, Write, Bash, Read, Glob, Grep
 
 # Agent Team Setup
 
+> **Source**: [Building a C Compiler with Claude](https://www.anthropic.com/engineering/building-c-compiler) by Nicholas Carlini at Anthropic. This skill implements the methodology from that project where 16 parallel Claude instances built a 100,000-line Rust C compiler.
+
 Set up infrastructure for running multiple parallel Claude agents that coordinate via git to implement complex projects. This is test-driven autonomous development - tests define success, agents figure out how to get there.
 
 ## When to Use This vs Ralph
