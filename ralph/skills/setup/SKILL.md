@@ -16,13 +16,15 @@ Use AskUserQuestion to walk through each step. Ask one question at a time. Use t
 ### Step 1: AI Harness
 
 Ask which AI coding CLI they'll use:
-- **Claude Code** (recommended) - Best agentic capabilities, native subagents, fine-grained permissions
-- **Cursor CLI** - Cursor's headless agent, good for scripting and automation
-- **OpenCode** - Multi-model (GPT-4, Claude, Gemini), good for model flexibility
-- **Codex CLI** - OpenAI's agent, good with o1 for reasoning-heavy tasks
-- **Custom** - Any CLI that accepts a prompt file (aider, continue, custom wrapper)
+- **Claude Code** (recommended) - `cat PROMPT.md | claude --allowedTools '...'`
+- **Cursor CLI** - `agent -p --force "$(cat PROMPT.md)"`
+- **OpenCode** - `opencode --model MODEL --prompt-file PROMPT.md`
+- **Codex CLI** - `codex --model MODEL --approval-mode auto-edit PROMPT.md`
+- **Custom** - Any CLI that accepts a prompt file
 
-If they pick OpenCode or Codex, ask which model. If custom, ask for the command template (explain `{PROMPT_FILE}` placeholder).
+If they pick OpenCode or Codex, ask which model. If custom, ask for the command template (use `{PROMPT_FILE}` as placeholder).
+
+For detailed harness configuration and comparison, see [references/harnesses.md](references/harnesses.md).
 
 ### Step 2: Permission Model
 
@@ -59,16 +61,6 @@ Ask how aggressively to parallelize:
 
 Validation is always 1 subagent (serialized backpressure).
 
-### Step 6: Stream Display
-
-Ask if they want a stream display TUI for monitoring iterations:
-- **Yes (recommended)** - Pipe CLI output through `stream_display.py` for readable tool calls, text toggle, and git diffs
-- **No** - Raw CLI output (or non-streaming harness like opencode/codex)
-
-If yes, the display will be included and `loop.sh` will pipe through it automatically (Claude Code harness only — other harnesses don't support `--output-format stream-json`).
-
-See [references/stream-display.md](references/stream-display.md) for architecture details.
-
 ## File Generation
 
 After the interview, generate all files in the project directory ($ARGUMENTS or current directory):
@@ -76,12 +68,11 @@ After the interview, generate all files in the project directory ($ARGUMENTS or 
 ### Files to generate:
 
 1. **`ralph.conf`** - Configuration from Steps 1-2
-2. **`loop.sh`** - Outer loop script (from [templates/loop.sh](templates/loop.sh), customized)
-3. **`stream_display.py`** - Stream display TUI (from [templates/stream_display.py](templates/stream_display.py), copy as-is if Step 6 = yes)
-4. **`PROMPT_plan.md`** - Planning prompt (from [templates/PROMPT_plan.md](templates/PROMPT_plan.md), with subagent limits from Step 5)
-5. **`PROMPT_build.md`** - Building prompt (from [templates/PROMPT_build.md](templates/PROMPT_build.md), with subagent limits from Step 5)
-6. **`AGENTS.md`** - Populated with answers from Steps 3-4 (use [templates/AGENTS.md](templates/AGENTS.md) as base)
-7. **`specs/`** directory (create empty, with a note to add JTBD specs)
+2. **`loop.sh`** - Outer loop script (from [templates/loop.sh](templates/loop.sh))
+3. **`PROMPT_plan.md`** - Planning prompt (from [templates/PROMPT_plan.md](templates/PROMPT_plan.md), with subagent limits from Step 5)
+4. **`PROMPT_build.md`** - Building prompt (from [templates/PROMPT_build.md](templates/PROMPT_build.md), with subagent limits from Step 5)
+5. **`AGENTS.md`** - Populated with answers from Steps 3-4 (use [templates/AGENTS.md](templates/AGENTS.md) as base)
+6. **`specs/`** directory (create empty, with a note to add JTBD specs)
 
 Read each template file, customize it with the user's answers, and write the result.
 
@@ -92,7 +83,6 @@ Read each template file, customize it with the user's answers, and write the res
 - **PROMPT_build.md**: Update subagent limits and validation commands to match answers. Must include "Stopping the Loop" section with `.stop` file instructions.
 - **ralph.conf**: Set HARNESS, MODEL, ALLOW_SUBTASKS from Steps 1-2
 - **loop.sh**: Copy from template as-is (it reads ralph.conf at runtime)
-- **stream_display.py**: Copy from template as-is (no customization needed)
 
 ## After Generation
 
@@ -101,7 +91,7 @@ Show the user:
 2. How to run: `./loop.sh --plan` then `./loop.sh --build`
 3. Remind them to write JTBD specs in `specs/*.md` (link to [references/specs.md](references/specs.md) format)
 4. Explain the stop file: the agent writes `.stop` when the task queue is empty, and the loop stops cleanly
-5. If stream display is enabled: press `[v]` during streaming to toggle text visibility
+5. Mention: run `/ralph-visualization` to add a stream display TUI for monitoring (Claude Code only)
 
 ## Reference Files
 
@@ -109,7 +99,6 @@ Show the user:
 - [references/backpressure.md](references/backpressure.md) - Language-specific backpressure patterns
 - [references/specs.md](references/specs.md) - Writing JTBD specifications
 - [references/subagents.md](references/subagents.md) - Subagent patterns and scaling
-- [references/stream-display.md](references/stream-display.md) - Stream display architecture and customization
 
 ## Architecture Context (for your reference, don't dump on user)
 
@@ -121,8 +110,8 @@ The loop has two hard stop conditions that always apply:
 
 Every prompt must include a "Stopping the Loop" section that tells the agent exactly when to write `.stop`. Without this, the loop restarts iterations that immediately exit — burning API calls.
 
-For Claude Code harness, output is piped through `stream_display.py` which renders streaming JSON as readable tool calls + text. Other harnesses don't support `--output-format stream-json` and skip the display.
-
 Key phrases to embed in generated prompts: "study" (not read), "don't assume not implemented", "up to N parallel subagents", "Ultrathink", "capture the why", "keep it up to date".
 
 Plan mode is read-only analysis. Build mode modifies code. Validation always uses exactly 1 subagent for serialized backpressure.
+
+Optional: `/ralph-visualization` adds a stream display TUI for Claude Code harness.

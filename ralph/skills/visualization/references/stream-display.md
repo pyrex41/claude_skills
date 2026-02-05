@@ -1,4 +1,4 @@
-# Stream Display
+# Stream Display Architecture
 
 Raw CLI output in `--output-format stream-json` mode is JSON lines — not human-readable. The stream display sits between the CLI and the terminal as a stdin filter.
 

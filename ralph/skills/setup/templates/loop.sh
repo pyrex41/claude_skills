@@ -37,12 +37,6 @@ ALLOW_SUBTASKS="${ALLOW_SUBTASKS:-false}"
 # Stop file — agent writes this when nothing left to do
 STOP_FILE=".stop"
 
-# Stream display script (set to "" to disable)
-DISPLAY_SCRIPT="${DISPLAY_SCRIPT:-stream_display.py}"
-
-# Dump raw stream JSON for debugging (set to file path to enable)
-DUMP_FILE="${DUMP_FILE:-}"
-
 # -----------------------------------------------------------------------------
 # Load config file if exists
 # -----------------------------------------------------------------------------
@@ -67,8 +61,6 @@ Options:
   --max <n>             Maximum iterations (default: 100)
   --sleep <n>           Seconds between iterations (default: 5)
   --prompt <file>       Prompt file to use (default: PROMPT.md)
-  --dump <file>         Dump raw stream JSON to file for debugging
-  --no-display          Disable stream display TUI
   --dangerous           Skip all permission checks (use with caution)
   -h, --help            Show this help
 
@@ -128,14 +120,6 @@ while [[ $# -gt 0 ]]; do
             PROMPT_FILE="$2"
             shift 2
             ;;
-        --dump)
-            DUMP_FILE="$2"
-            shift 2
-            ;;
-        --no-display)
-            DISPLAY_SCRIPT=""
-            shift
-            ;;
         --dangerous)
             DANGEROUS_MODE=true
             shift
@@ -184,7 +168,7 @@ build_command() {
     case "$HARNESS" in
         claude)
             # Claude Code CLI
-            local cmd="cat '$prompt_file' | claude --output-format stream-json --verbose --include-partial-messages"
+            local cmd="cat '$prompt_file' | claude"
 
             if [[ "$DANGEROUS_MODE" == "true" ]]; then
                 cmd="$cmd --dangerously-skip-permissions"
@@ -279,8 +263,6 @@ echo "  Prompt file:    $PROMPT_FILE"
 echo "  Allow subtasks: $ALLOW_SUBTASKS"
 echo "  Max iterations: $MAX_ITERATIONS"
 echo "  Sleep between:  ${SLEEP_BETWEEN}s"
-[[ -n "$DISPLAY_SCRIPT" ]] && echo "  Display:        $DISPLAY_SCRIPT"
-[[ -n "$DUMP_FILE" ]] && echo "  Dump file:      $DUMP_FILE"
 [[ "$DANGEROUS_MODE" == "true" ]] && echo -e "  ${RED}DANGEROUS MODE: All permissions skipped${NC}"
 echo ""
 
@@ -304,25 +286,11 @@ while [ $iteration -lt $MAX_ITERATIONS ]; do
 
     # Build and run the command
     cmd=$(build_command "$PROMPT_FILE")
+    echo -e "${BLUE}Running: ${cmd}${NC}"
+    echo ""
 
-    # Build display args for stream_display.py
-    DISPLAY_ARGS="--iteration $iteration --mode $MODE"
-    [[ -n "$MODEL" ]] && DISPLAY_ARGS="$DISPLAY_ARGS --model $MODEL"
-    [[ -n "$DUMP_FILE" ]] && DISPLAY_ARGS="$DISPLAY_ARGS --dump $DUMP_FILE"
-
-    # Pipe through stream display if available and harness supports streaming
-    if [[ -n "$DISPLAY_SCRIPT" && -f "$DISPLAY_SCRIPT" && "$HARNESS" == "claude" ]]; then
-        echo -e "${BLUE}Running with stream display${NC}"
-        echo ""
-        if ! eval "$cmd" | python3 "$DISPLAY_SCRIPT" $DISPLAY_ARGS; then
-            echo -e "${RED}Agent exited with error${NC}"
-        fi
-    else
-        echo -e "${BLUE}Running: ${cmd}${NC}"
-        echo ""
-        if ! eval "$cmd"; then
-            echo -e "${RED}Agent exited with error${NC}"
-        fi
+    if ! eval "$cmd"; then
+        echo -e "${RED}Agent exited with error${NC}"
     fi
 
     # Check stop file immediately (don't sleep if agent said to stop)
