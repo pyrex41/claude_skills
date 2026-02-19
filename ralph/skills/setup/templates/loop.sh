@@ -205,14 +205,31 @@ build_command() {
             ;;
 
         opencode)
-            # OpenCode CLI (agentic coding with various models)
-            local cmd="opencode --model '$MODEL' --prompt-file '$prompt_file'"
+            # OpenCode server mode — server must already be running.
+            # See references/harnesses.md for setup.
+            # MODEL format: "provider/model" (e.g. "xai/grok-code-fast-1")
+            local provider_id="${MODEL%%/*}"
+            local model_id="${MODEL#*/}"
+            local port="${OPENCODE_PORT:-4096}"
 
-            if [[ "$DANGEROUS_MODE" == "true" ]]; then
-                cmd="$cmd --auto-approve"
-            fi
-
-            echo "$cmd"
+            # Build the function that creates a session and sends the prompt
+            cat << OPENCODE_CMD
+(
+  SESSION=\$(curl -sf -X POST "http://127.0.0.1:${port}/session" \
+    -H "Content-Type: application/json" \
+    -d '{"title": "ralph-${MODE}"}')
+  SESSION_ID=\$(echo "\$SESSION" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  BODY_FILE=\$(mktemp /tmp/ralph-body.XXXXXX.json)
+  python3 - "${prompt_file}" > "\$BODY_FILE" <<'PYEOF'
+import json, sys
+prompt = open(sys.argv[1]).read()
+print(json.dumps({"model": {"providerID": "${provider_id}", "modelID": "${model_id}"}, "parts": [{"type": "text", "text": prompt}]}))
+PYEOF
+  curl -s -X POST "http://127.0.0.1:${port}/session/\$SESSION_ID/message" \
+    -H "Content-Type: application/json" -d "@\$BODY_FILE"
+  rm -f "\$BODY_FILE"
+)
+OPENCODE_CMD
             ;;
 
         codex)

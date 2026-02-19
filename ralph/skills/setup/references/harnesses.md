@@ -32,65 +32,83 @@ npm install -g @anthropic-ai/claude-code
 
 ---
 
-## Cursor CLI (Headless)
-
-Cursor's headless agent for scripting and automation.
-
-```bash
-# Install
-curl https://cursor.com/install -fsSL | bash
-
-# Set API key
-export CURSOR_API_KEY=your_api_key_here
-
-# Usage
-./loop.sh --harness cursor --plan
-./loop.sh --harness cursor --build
-```
-
-**Pros:**
-- Headless/scriptable mode for automation
-- Print mode (`-p`) for non-interactive use
-- JSON and streaming output formats
-- File modification with `--force` flag
-
-**Cons:**
-- No native subagent support
-- Requires API key for headless mode
-- Less granular tool permissions than Claude Code
-
-**Modes:**
-- `agent -p "prompt"` - Print mode, read-only analysis
-- `agent -p --force "prompt"` - Print mode with file modifications enabled
-
----
-
 ## OpenCode
 
-Multi-model agentic coding CLI.
+Multi-model agentic coding CLI. Supports OpenAI, Anthropic, Google, xAI, and others.
 
 ```bash
 # Install
-pip install opencode
+curl -fsSL https://opencode.ai/install | bash
 
-# Usage
-./loop.sh --harness opencode --model gpt-4-turbo
-./loop.sh --harness opencode --model claude-3-opus
+# Check available models
+opencode models
+
+# Usage (server mode — recommended for Ralph loops)
+./loop.sh --harness opencode --model xai/grok-code-fast-1
+./loop.sh --harness opencode --model anthropic/claude-sonnet-4-6
 ```
 
-**Available models:**
-- OpenAI: `gpt-4`, `gpt-4-turbo`, `gpt-4o`
-- Anthropic: `claude-3-opus`, `claude-3-sonnet`, `claude-3-haiku`
-- Google: `gemini-pro`, `gemini-ultra`
+**Model format:** `provider/model` (e.g. `xai/grok-code-fast-1`, `openai/gpt-4o`, `anthropic/claude-sonnet-4-6`).
+For the HTTP API, split on `/`: `providerID="xai"`, `modelID="grok-code-fast-1"`.
+Do NOT double-prefix — `providerID:"xai"` + `modelID:"xai/grok-code-fast-1"` will fail.
 
 **Pros:**
-- Model flexibility
-- Works with multiple providers
-- Good for A/B testing models
+- Model flexibility across providers
+- Persistent server mode avoids per-iteration startup cost
+- HTTP API enables clean session management
 
 **Cons:**
-- Less sophisticated permission system
 - No native subagent support
+- `opencode run` may emit "reasoning part not found" errors for some models — use server mode instead
+- `opencode serve` does not accept a path argument — `cd` to workspace before starting
+
+### Server Mode (Recommended for Ralph Loops)
+
+Start the server once, create a new session per iteration, POST the prompt and block until done:
+
+```bash
+# 1. Start server from workspace root
+cd /path/to/project
+opencode serve --port 4096 --hostname 127.0.0.1 &
+
+# 2. Create session
+SESSION=$(curl -sf -X POST http://localhost:4096/session \
+  -H "Content-Type: application/json" \
+  -d '{"title": "ralph-build-1"}')
+SESSION_ID=$(echo "$SESSION" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+
+# 3. Send prompt and wait for completion (blocks until agent finishes)
+# Write body to temp file to avoid shell quoting issues
+python3 - /path/to/PROMPT_build.md > /tmp/body.json <<'PYEOF'
+import json, sys
+prompt = open(sys.argv[1]).read()
+print(json.dumps({
+    "model": {"providerID": "xai", "modelID": "grok-code-fast-1"},
+    "parts": [{"type": "text", "text": prompt}]
+}))
+PYEOF
+
+curl -s -X POST "http://localhost:4096/session/$SESSION_ID/message" \
+  -H "Content-Type: application/json" \
+  -d "@/tmp/body.json"
+```
+
+**API endpoints:**
+- `POST /session` — create session (`{"title": "..."}`)
+- `POST /session/:id/message` — send prompt, blocks until complete
+  - Body: `{"model": {"providerID": "...", "modelID": "..."}, "parts": [{"type": "text", "text": "..."}]}`
+- `GET /session/:id/message` — list messages
+
+**Debugging curl:**
+Use `-s -w "\n__STATUS:%{http_code}"` instead of `-sf` to see HTTP errors without silent failure.
+
+### `opencode run` (Simple, But Has Caveats)
+
+```bash
+opencode run -m xai/grok-code-fast-1 "$(cat PROMPT_build.md)"
+```
+
+Works for one-shot use but may produce "reasoning part not found" errors for models that emit reasoning tokens (e.g. grok-code-fast-1). Prefer server mode for loops.
 
 ---
 
@@ -163,22 +181,21 @@ CUSTOM_CMD="./my-wrapper.sh {PROMPT_FILE}"
 
 ## Comparison Matrix
 
-| Feature | Claude Code | Cursor CLI | OpenCode | Codex | Custom |
-|---------|-------------|------------|----------|-------|--------|
-| Subagents | Yes (Task) | No | No | No | Depends |
-| Tool permissions | Fine-grained | Basic (--force) | Basic | Approval modes | Depends |
-| Extended thinking | Yes | No | No | o1 only | Depends |
-| Model flexibility | Claude only | Multi-model | Multi-model | OpenAI only | Any |
-| Sandbox support | Yes | No | Basic | Yes | Depends |
-| Headless/scripting | Yes | Yes (native) | Basic | Basic | Depends |
+| Feature | Claude Code | OpenCode | Codex | Custom |
+|---------|-------------|----------|-------|--------|
+| Subagents | Yes (Task) | No | No | Depends |
+| Tool permissions | Fine-grained | Basic | Approval modes | Depends |
+| Extended thinking | Yes | No | o1 only | Depends |
+| Model flexibility | Claude only | xAI, OpenAI, Anthropic, Google, etc. | OpenAI only | Any |
+| Loop mode | subprocess | server (HTTP API) | subprocess | Depends |
+| Sandbox support | Yes | Basic | Yes | Depends |
 
 ## Recommendation
 
-1. **Start with Claude Code** - Best agentic capabilities
-2. **Try Cursor CLI** for headless automation and scripting workflows
-3. **Try OpenCode with GPT-4** if you need different models
-4. **Use Codex with o1** for complex reasoning tasks
-5. **Custom** for specialized setups or proprietary tools
+1. **Start with Claude Code** - Best agentic capabilities, native subagents
+2. **Use OpenCode** for non-Claude models (xAI Grok, GPT-4o, Gemini) — use server mode
+3. **Use Codex with o1** for complex reasoning tasks
+4. **Custom** for specialized setups or proprietary tools
 
 ## Configuration
 
