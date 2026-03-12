@@ -45,10 +45,13 @@ export class MyPage {
 
   async goto() {
     await this.page.goto('/main/path/to/page');
-    await this.page.waitForLoadState('networkidle', { timeout: 30000 });
+    // Use 'domcontentloaded' — 'networkidle' hangs on SPA polling/websockets
+    await this.page.waitForLoadState('domcontentloaded', { timeout: 15000 });
   }
 }
 ```
+
+> **Note**: Use `domcontentloaded` not `networkidle` for `waitForLoadState`. Angular's SPA has ongoing XHR/polling that prevents `networkidle` from resolving.
 
 ### 2. Create the spec file
 
@@ -57,17 +60,16 @@ Tests go in `e2e/tests/<feature>/<name>.spec.ts`:
 ```typescript
 import { test, expect } from '@playwright/test';
 import { MyPage } from '../../page-objects/my.page';
+import { ensureAuthenticated } from '../helpers/auth-state';
 
 test.describe('Feature Name', () => {
-  let myPage: MyPage;
-
-  test.beforeEach(async ({ page }) => {
-    myPage = new MyPage(page);
-  });
+  test.describe.configure({ mode: 'serial' });
 
   test('does the thing', async ({ page }) => {
+    const myPage = new MyPage(page);
     await myPage.goto();
-    // ...assertions
+    await ensureAuthenticated(page, '/main/path/to/page');
+    // ...assertions — auth is guaranteed valid
   });
 });
 ```
@@ -88,9 +90,42 @@ test.describe('Feature Name', () => {
 
 **Auth token storage (FacilityGrid-specific):**
 - `localStorage`: `ate_sct` (auth token), `ate_rft` (refresh token), `ate_exp` (expiry)
-- Cookie: `act`
+- Cookie: `act` (scoped to `/api/cloud` path only)
 - If making API calls in tests (e.g. for cleanup), use `localStorage.getItem('ate_sct')` as `X-AUTH-TOKEN` header
 - The backend API base path is `/api/cloud/` (not `/api/v2/`)
+
+**IMPORTANT — Auth token invalidation (300s TTL issue):**
+
+The backend issues tokens with a **300-second TTL** that exactly matches Angular's `isFresh(300)` freshness threshold. This means storageState tokens are always "stale" on load, causing Angular to automatically refresh them — which invalidates the original tokens for any other browser context.
+
+**Required pattern — use `ensureAuthenticated()` after every navigation:**
+
+```typescript
+import { ensureAuthenticated } from '../helpers/auth-state';
+
+test('my test', async ({ page }) => {
+  await page.goto('/main/some-page', { timeout: 15000 });
+  await ensureAuthenticated(page, '/main/some-page');
+  // ... test code — auth is guaranteed valid
+});
+```
+
+`ensureAuthenticated(page, targetUrl?)` in `tests/helpers/auth-state.ts`:
+- Races login form visibility (`#user_login`) vs app element (`#user_name`) to detect auth state
+- If on login page: re-authenticates, persists refreshed tokens, navigates to `targetUrl`
+- If already authenticated: returns immediately (no overhead)
+- **Always call this after `page.goto()` on a protected route**
+
+**Additional auth rules:**
+- Tests must run **serially** (`workers: 1` in config) — parallel execution causes concurrent token refreshes and login rate-limiting
+- Use `test.describe.configure({ mode: 'serial' })` in test files for explicit ordering
+- The backend has a **login rate limit** — too many login attempts trigger "Too many login attempts" error. Serial execution avoids this.
+- `page.goto()` triggers a full SPA reload which re-checks auth. Prefer SPA navigation (clicking links) for multi-step flows within a single test.
+- Preview environments with `support@facilitygrid.com` credentials don't have this TTL issue.
+
+**Feature gates:**
+- Some pages require specific features to be enabled per project (e.g., `FeatureNames.DASHBOARD_VIEW` for Activity Summary). If a feature isn't enabled, the sidebar link won't appear and direct navigation may redirect.
+- Check for feature availability before asserting page content, or require a known-good entity ID via env var.
 
 ### 4. Test data & IDs
 
@@ -101,11 +136,29 @@ Tests that navigate to specific entities need valid IDs from the staging data du
 docker exec -i fg-mysql mariadb -u root -plocaldev123 'fg-demo' -e "YOUR QUERY"
 ```
 
-Make IDs configurable via env vars with sensible defaults:
+Make IDs configurable via env vars. **Skip if the ID isn't set** rather than hardcoding a default that may not exist or may lack required features:
 ```typescript
-const PROJECT_ID = Number(process.env.TEST_PROJECT_ID) || 7401;
-const OBSERVATION_ID = Number(process.env.TEST_OBSERVATION_ID) || 549;
+const projectId = process.env.PROJECT_ID;
+if (!projectId) {
+  console.log('PROJECT_ID not set — skipping');
+  test.skip();
+  return;
+}
 ```
+
+**ag-grid selectors**: The project uses ag-Grid Enterprise extensively.
+- Rows: `.ag-body-viewport .ag-row` (attached but may not be visible due to virtualization)
+- Visible rows: `.ag-center-cols-container .ag-row` (the center viewport, excludes pinned columns)
+- Use `toBeAttached()` not `toBeVisible()` for virtualized rows
+- For clicking rows, use `.ag-center-cols-container .ag-row .ag-cell` (cells are reliably visible)
+- Grid component: `ag-grid-angular`
+
+**Navigation within Angular SPA**: The app is at `http://frontend.local.gd`. Key routes:
+- `/main/projects` — project list (ag-grid)
+- `/main/project/:id/overview` — project status overview (default after clicking a project)
+- `/main/project/:id/dashboard` — Activity Summary (requires Dashboard View feature)
+- `/main/dashboard` — global watched projects dashboard
+- `/dashboard` — also maps to watched projects
 
 ### 5. Cleanup / teardown
 
