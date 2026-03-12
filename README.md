@@ -7,10 +7,6 @@ Personal skill bundles for Claude Code, managed with [skm](https://github.com/py
 1. Install skm
 2. Add this repo as a source:
    ```
-   skm source add ~/claude_skills
-   ```
-   Or clone and point to it:
-   ```
    skm source add https://github.com/pyrex41/claude_skills
    ```
 3. Install a bundle:
