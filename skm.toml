@@ -1,0 +1,26 @@
+[[bundles]]
+name = "cl"
+path = "cl"
+
+[[bundles]]
+name = "fg"
+path = "fg"
+
+[[bundles]]
+name = "gastro"
+path = "gastro"
+
+[[bundles]]
+name = "ralph"
+path = "ralph"
+
+[[bundles]]
+name = "rb"
+path = "rb"
+
+[[bundles]]
+name = "gr-plan-review"
+path = "skills/gr-plan-review"
+
+[bundles.paths]
+skills = "."
